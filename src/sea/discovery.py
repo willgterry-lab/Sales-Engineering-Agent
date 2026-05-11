@@ -19,6 +19,26 @@ from pydantic import BaseModel, Field
 # there, so descriptions matter as much as the field names themselves.
 # -----------------------------------------------------------------------------
 
+class Champion(BaseModel):
+    """Champion identification with confidence status."""
+
+    status: Literal["confirmed", "forming", "none"] = Field(
+        description=(
+            "confirmed: person has clearly and explicitly advocated internally. "
+            "forming: person is highly engaged, owns the evaluation, or has signalled "
+            "intent to push internally, but has not yet explicitly advocated. "
+            "none: no candidate has emerged."
+        ),
+    )
+    name: Optional[str] = Field(
+        default=None,
+        description=(
+            "Name and title. Required when status is 'confirmed' or 'forming'. "
+            "Null only when status is 'none'."
+        ),
+    )
+
+
 class MEDDPICCDiscovery(BaseModel):
     """Structured discovery output following the MEDDPICC framework."""
 
@@ -54,13 +74,13 @@ class MEDDPICCDiscovery(BaseModel):
         default_factory=list,
         description="The actual problems or pressures the buyer is trying to solve.",
     )
-    champion: Optional[str] = Field(
-        default=None,
+    champion: Champion = Field(
         description=(
-            "Name and title of the person inside the account most likely to "
-            "advocate internally. Be conservative — only name someone who has "
-            "clearly advocated, not just engaged with the conversation. "
-            "Null if not yet identified."
+            "Champion identification. Use status='confirmed' only when someone has "
+            "explicitly advocated. Use status='forming' when someone owns the "
+            "evaluation, is clearly invested, or has signalled intent to push "
+            "internally but has not explicitly advocated. Use status='none' when "
+            "no candidate has emerged."
         ),
     )
     competition: list[str] = Field(
@@ -107,7 +127,7 @@ SYSTEM_PROMPT = """You are an experienced Solutions Consultant reviewing a sales
 Rules:
 - Only record what is actually evidenced in the transcript. Do not invent.
 - Use null or empty list for any field not surfaced.
-- Be conservative on Champion. Only name someone who has clearly advocated, not just engaged with the conversation.
+- For champion: use status='confirmed' only when someone has explicitly advocated internally. Use status='forming' when someone owns the evaluation or has signalled intent to push but has not explicitly advocated. Use status='none' when no candidate has emerged. Always include name when status is confirmed or forming.
 - For product_fit, reason explicitly from two signals: spend (Attributary Core fits ~$10k+/month ad spend; Measurement fits $200k+/month) and pain shape (Core solves data plumbing and reporting; Measurement solves incrementality and attribution proof). If both signals point both ways, return "both". If neither is clear, return "unclear".
 - Be specific. "Reporting takes time" is weak; "10 hours per week of manual reporting work" is useful.
 """
