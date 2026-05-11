@@ -1,4 +1,4 @@
-"""Demo: extract structured MEDDPICC discovery from the Bellwether transcript.
+"""Demo: extract structured MEDDPICC discovery from a transcript fixture.
 
 What this proves:
 - A Pydantic model can serve as the schema for an Anthropic tool.
@@ -7,8 +7,10 @@ What this proves:
 
 Run with:
     uv run python scripts/extract_discovery_demo.py
+    uv run python scripts/extract_discovery_demo.py fixtures/transcript-02-cirra-insurance.md
 """
 
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -18,13 +20,16 @@ from sea.discovery import extract_discovery
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TRANSCRIPT_PATH = REPO_ROOT / "fixtures" / "transcript-01-bellwether-coffee.md"
+DEFAULT_TRANSCRIPT = REPO_ROOT / "fixtures" / "transcript-01-bellwether-coffee.md"
 
 
 if __name__ == "__main__":
-    transcript = TRANSCRIPT_PATH.read_text(encoding="utf-8")
+    path_arg = sys.argv[1] if len(sys.argv) > 1 else None
+    transcript_path = (REPO_ROOT / path_arg) if path_arg else DEFAULT_TRANSCRIPT
 
-    print(f"Extracting MEDDPICC from: {TRANSCRIPT_PATH.name}")
+    transcript = transcript_path.read_text(encoding="utf-8")
+
+    print(f"Extracting MEDDPICC from: {transcript_path.name}")
     print(f"Transcript length:        {len(transcript):,} chars")
     print(f"Running extraction (this calls Claude, takes a few seconds)...\n")
 
