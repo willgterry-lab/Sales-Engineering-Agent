@@ -96,16 +96,6 @@ st.markdown(f"""
     font-weight: 700;
     margin-bottom: 0.75rem;
   }}
-  .step-tool {{
-    display: inline-block;
-    font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 0.78rem;
-    background: {NAVY_LIGHT};
-    color: {NAVY};
-    padding: 3px 8px;
-    border-radius: 5px;
-    margin-bottom: 0.5rem;
-  }}
   .step-card h4 {{
     margin: 0.4rem 0 0.3rem;
     font-size: 0.95rem;
@@ -257,34 +247,60 @@ st.markdown(f"""
 <div class="hero">
   <div class="hero-eyebrow">Powered by Claude</div>
   <h1>Sales Engineering Agent</h1>
-  <p>Upload a discovery call transcript and receive a structured MEDDPICC analysis,
-  matched customer case studies, and a tailored follow-up email. All three artefacts in under 60 seconds.</p>
+  <p>A Claude-powered agent built for <strong style="color:rgba(255,255,255,0.95)">Attributary</strong>,
+  a fictional marketing data platform with two product lines: Core (data pipeline and warehouse connectors)
+  and Measurement (marketing mix modelling and incrementality testing).</p>
+  <p style="margin-top:0.75rem;">
+  Upload a sales discovery call transcript and the agent runs three tools automatically: it extracts
+  a structured MEDDPICC analysis, retrieves the most relevant customer case studies from the knowledge base,
+  and drafts a tailored follow-up email grounded in both. No invented numbers. No hallucinated references.
+  All three artefacts in under 60 seconds.</p>
+  <div style="margin-top:1.5rem; padding-top:1.25rem; border-top:1px solid rgba(255,255,255,0.15);
+              display:flex; gap:1.5rem; flex-wrap:wrap;">
+    <span style="font-size:0.8rem; color:rgba(255,255,255,0.55);">
+      Built with &nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Claude API</strong> &nbsp;·&nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Python</strong> &nbsp;·&nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Pydantic</strong> &nbsp;·&nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Streamlit</strong>
+    </span>
+    <span style="font-size:0.8rem; color:rgba(255,255,255,0.55);">
+      Skills demonstrated &nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Tool use</strong> &nbsp;·&nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Structured outputs</strong> &nbsp;·&nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">RAG retrieval</strong> &nbsp;·&nbsp;
+      <strong style="color:rgba(255,255,255,0.85);">Eval harness</strong>
+    </span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# How it works — three step cards
+# What you get — three output cards
 # ---------------------------------------------------------------------------
 
 st.markdown(f"""
+<div style="margin-bottom:0.75rem;">
+  <span style="font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:{NAVY};">
+    The outputs
+  </span>
+  <div style="height:3px; background:{NAVY}; border-radius:2px; margin-top:0.4rem; width:40px;"></div>
+</div>
 <div class="steps-grid">
   <div class="step-card">
     <div class="step-num">1</div>
-    <div class="step-tool">extract_structured_discovery</div>
     <h4>Structured discovery</h4>
-    <p>Extracts MEDDPICC fields and classifies product-fit (Core vs Measurement) from spend signals in the transcript.</p>
+    <p>Extracts MEDDPICC fields and classifies product-fit (Core vs Measurement) from spend and pain signals in the transcript.</p>
   </div>
   <div class="step-card">
     <div class="step-num">2</div>
-    <div class="step-tool">retrieve_case_studies</div>
     <h4>Case study retrieval</h4>
-    <p>Matches the discovery against a fixture knowledge base of customer case studies, filtered by product line.</p>
+    <p>Matches the discovery against a knowledge base of customer case studies, filtered and ranked by product line fit.</p>
   </div>
   <div class="step-card">
     <div class="step-num">3</div>
-    <div class="step-tool">draft_followup_email</div>
     <h4>Follow-up email</h4>
-    <p>Drafts a tailored email grounded in the discovery and retrieved case studies. No invented numbers.</p>
+    <p>Drafts a tailored email grounded in the discovery and retrieved case studies. Every figure traces back to the transcript.</p>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -296,7 +312,7 @@ st.markdown(f"""
 st.markdown(f"""
 <div class="upload-card">
   <h3>Upload a transcript</h3>
-  <p>Accepts .md, .txt, .pdf, or .docx — paste or export your discovery call notes directly.</p>
+  <p>Accepts .md, .txt, .pdf, or .docx. Paste or export your discovery call notes directly.</p>
 </div>
 """, unsafe_allow_html=True)
 
