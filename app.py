@@ -488,7 +488,7 @@ with st.spinner("Running agent..."):
     try:
         output = run_agent(transcript)
     except Exception as e:
-        st.error(f"Agent failed: {e}")
+        st.error(f"Agent failed: {type(e).__name__}: {e}")
         st.stop()
     finally:
         _agent_mod._make_dispatch = _original_make_dispatch
