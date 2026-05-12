@@ -16,7 +16,6 @@ COPY src/ ./src/
 COPY fixtures/ ./fixtures/
 COPY app.py ./
 
-EXPOSE 8501
+EXPOSE 8080
 
-# Railway injects $PORT at runtime; fall back to 8501 locally
-CMD ["sh", "-c", "uv run streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true"]
+CMD ["uv", "run", "streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true"]
