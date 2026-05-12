@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+.git/
+.gitignore
+.DS_Store
+.claude/
+docs/
+scripts/
+CLAUDE.md
