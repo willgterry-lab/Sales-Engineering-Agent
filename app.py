@@ -496,6 +496,73 @@ def exec_summary(content, max_len: int = 88) -> str:
     return first
 
 
+def render_meddpicc_html(d, fit_label: str, transcript_name: str) -> str:
+    """Styled card that mirrors the PDF layout."""
+    champ = d.champion
+    if champ.status == "confirmed":
+        champ_str = f"{champ.name} (confirmed)"
+    elif champ.status == "forming":
+        champ_str = f"{champ.name} (forming)"
+    else:
+        champ_str = "None identified"
+
+    def sec(title: str, content) -> str:
+        if not content:
+            return ""
+        if isinstance(content, list):
+            items_html = "".join(
+                f'<li style="margin-bottom:0.3rem; color:#374151;">{item}</li>'
+                for item in content
+            )
+            body = (
+                f'<ul style="margin:0.4rem 0 0; padding-left:1.25rem; '
+                f'font-size:0.9rem; line-height:1.6;">{items_html}</ul>'
+            )
+        else:
+            body = (
+                f'<p style="margin:0.4rem 0 0; font-size:0.9rem; '
+                f'color:#374151; line-height:1.6;">{content}</p>'
+            )
+        return (
+            f'<div style="margin-bottom:1.1rem;">'
+            f'<div style="background:{NAVY}; color:#fff; font-size:0.7rem; font-weight:700; '
+            f'letter-spacing:0.09em; text-transform:uppercase; padding:0.35rem 0.7rem; '
+            f'border-radius:4px; display:inline-block;">{title}</div>'
+            f'{body}</div>'
+        )
+
+    sections = "".join(filter(None, [
+        sec("Summary",           d.summary),
+        sec("Metrics",           d.metrics),
+        sec("Economic Buyer",    d.economic_buyer),
+        sec("Decision Criteria", d.decision_criteria),
+        sec("Decision Process",  d.decision_process),
+        sec("Identify Pain",     d.identify_pain),
+        sec("Competition",       d.competition),
+        sec("Paper Process",     d.paper_process),
+        sec("Timeline",          d.timeline),
+    ]))
+
+    return (
+        f'<div style="background:#fff; border-radius:12px; border:1px solid #e2e8f0; '
+        f'padding:1.75rem 2rem; box-shadow:0 1px 4px rgba(0,0,0,0.06); margin-bottom:0.5rem;">'
+        f'<div style="font-size:1.2rem; font-weight:800; color:{NAVY}; margin-bottom:0.15rem;">'
+        f'Discovery Report</div>'
+        f'<div style="font-size:0.8rem; color:#9ca3af; margin-bottom:0.9rem;">{transcript_name}</div>'
+        f'<div style="height:2px; background:{NAVY}; border-radius:1px; margin-bottom:1.1rem;"></div>'
+        f'<div style="display:flex; gap:3rem; margin-bottom:1.4rem; flex-wrap:wrap;">'
+        f'<div><div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; '
+        f'letter-spacing:0.09em; color:{NAVY}; margin-bottom:0.15rem;">Product Fit</div>'
+        f'<div style="font-size:0.9rem; font-weight:600; color:#1f2937;">{fit_label}</div></div>'
+        f'<div><div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; '
+        f'letter-spacing:0.09em; color:{NAVY}; margin-bottom:0.15rem;">Champion</div>'
+        f'<div style="font-size:0.9rem; font-weight:600; color:#1f2937;">{champ_str}</div></div>'
+        f'</div>'
+        f'{sections}'
+        f'</div>'
+    )
+
+
 def format_meddpicc_writeup(d, fit_label: str) -> str:
     champ = d.champion
     if champ.status == "confirmed":
@@ -913,7 +980,7 @@ if st.session_state.active_idx is not None and _store["prospects"]:
 
         # ── Full write-up ────────────────────────────────────────────────────
         st.markdown(
-            f"<div style='margin-top:1.75rem; margin-bottom:0.4rem;'>"
+            f"<div style='margin-top:1.75rem; margin-bottom:0.75rem;'>"
             f"<span style='font-size:0.72rem; font-weight:700; letter-spacing:0.1em; "
             f"text-transform:uppercase; color:{NAVY};'>Full write-up</span>"
             f"<div style='height:2px; background:{NAVY}; border-radius:2px; "
@@ -921,7 +988,12 @@ if st.session_state.active_idx is not None and _store["prospects"]:
             f"</div>",
             unsafe_allow_html=True,
         )
-        st.code(format_meddpicc_writeup(d, fit_label), language=None)
+        st.markdown(
+            render_meddpicc_html(d, fit_label, transcript_name),
+            unsafe_allow_html=True,
+        )
+        with st.expander("Copy as plain text"):
+            st.code(format_meddpicc_writeup(d, fit_label), language=None)
 
         st.download_button(
             label="Download Discovery PDF",
