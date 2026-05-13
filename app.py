@@ -31,13 +31,22 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Session state
+# Shared prospect store — survives page refreshes
 # ---------------------------------------------------------------------------
+# st.cache_resource lives at the server-process level, not the browser session.
+# That means the prospects list persists across refreshes and new tabs for as
+# long as the server process is running (i.e. until Railway redeploys).
+# active_idx and form_key are per-browser-tab so they stay in session_state.
 
-if "prospects" not in st.session_state:
-    st.session_state.prospects = []      # list of {name, transcript_name, output}
+@st.cache_resource
+def _get_prospect_store() -> dict:
+    return {"prospects": []}   # list of {name, transcript_name, output}
+
+
+_store = _get_prospect_store()
+
 if "active_idx" not in st.session_state:
-    st.session_state.active_idx = None   # int index into prospects list
+    st.session_state.active_idx = None   # int index into the shared list
 if "form_key" not in st.session_state:
     st.session_state.form_key = 0        # increment to reset name input + uploader
 
@@ -688,7 +697,7 @@ TOOL_DONE = {
 # Two-column layout: "Your Prospects" | "New Prospect"
 # ---------------------------------------------------------------------------
 
-has_prospects = bool(st.session_state.prospects)
+has_prospects = bool(_store["prospects"])
 
 if has_prospects:
     col_your, col_new = st.columns([1, 2], gap="large")
@@ -705,7 +714,7 @@ if col_your is not None:
         <div class="section-bar"></div>
         """, unsafe_allow_html=True)
 
-        names = [p["name"] for p in st.session_state.prospects]
+        names = [p["name"] for p in _store["prospects"]]
         default_idx = (
             st.session_state.active_idx
             if st.session_state.active_idx is not None
@@ -801,12 +810,12 @@ with col_new:
 
         _status_container.empty()
 
-        st.session_state.prospects.append({
+        (_store["prospects"]).append({
             "name": prospect_name.strip(),
             "transcript_name": uploaded.name,
             "output": output,
         })
-        st.session_state.active_idx = len(st.session_state.prospects) - 1
+        st.session_state.active_idx = len(_store["prospects"]) - 1
         st.session_state.form_key += 1  # reset name input + uploader on next render
         st.rerun()
 
@@ -814,8 +823,8 @@ with col_new:
 # Results — shown for the selected prospect
 # ---------------------------------------------------------------------------
 
-if st.session_state.active_idx is not None and st.session_state.prospects:
-    active          = st.session_state.prospects[st.session_state.active_idx]
+if st.session_state.active_idx is not None and _store["prospects"]:
+    active          = _store["prospects"][st.session_state.active_idx]
     output          = active["output"]
     transcript_name = active["transcript_name"]
 
