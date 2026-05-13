@@ -1,7 +1,9 @@
 """Streamlit UI for the Sales Engineering Agent.
 
-Landing page explains the tool. User uploads a discovery transcript
-(.md, .txt, .pdf, or .docx). The agent runs and displays results in three tabs.
+Landing page explains the tool. User enters a prospect name, uploads a discovery
+transcript (.md, .txt, .pdf, or .docx), and clicks Analyse. The agent runs and
+displays results in three tabs. Previously analysed prospects are listed in a
+side column for quick switching.
 
 Run with:
     uv run streamlit run app.py
@@ -29,6 +31,17 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Session state
+# ---------------------------------------------------------------------------
+
+if "prospects" not in st.session_state:
+    st.session_state.prospects = []      # list of {name, transcript_name, output}
+if "active_idx" not in st.session_state:
+    st.session_state.active_idx = None   # int index into prospects list
+if "form_key" not in st.session_state:
+    st.session_state.form_key = 0        # increment to reset name input + uploader
+
+# ---------------------------------------------------------------------------
 # Global CSS — navy palette, card styles, tab overrides
 # ---------------------------------------------------------------------------
 
@@ -46,7 +59,7 @@ st.markdown(f"""
 
   /* ── Hide Streamlit's auto-anchor icons on custom HTML headings ── */
   [data-testid="stHeadingAnchorLink"] {{ display: none !important; }}
-  .hero h1 a, .step-card h4 a, .upload-card h3 a {{ display: none !important; }}
+  .hero h1 a, .step-card h4 a {{ display: none !important; }}
 
   /* ── Hero banner ── */
   .hero {{
@@ -145,45 +158,87 @@ st.markdown(f"""
     line-height: 1.5;
   }}
 
-  /* ── Upload card (top) + file uploader (bottom) merged into one card ── */
-  .upload-card {{
+  /* ── Section headings ── */
+  .section-label {{
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: {NAVY};
+    margin-bottom: 0.4rem;
+  }}
+  .section-bar {{
+    height: 3px;
+    background: {NAVY};
+    border-radius: 2px;
+    width: 40px;
+    margin-bottom: 1rem;
+  }}
+
+  /* ── New Prospect card ── */
+  .new-prospect-card {{
     background: {WHITE};
     border: 2px dashed {NAVY};
-    border-bottom: none;
-    border-radius: 14px 14px 0 0;
-    padding: 1.75rem 2rem 1.25rem;
-    margin-bottom: 0;
+    border-radius: 14px;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.25rem;
   }}
-  .upload-card h3 {{
+  .new-prospect-card h3 {{
     color: {NAVY};
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 700;
     margin: 0 0 0.3rem;
   }}
-  .upload-card p {{
+  .new-prospect-card p {{
     color: #6b7280;
     font-size: 0.88rem;
     margin: 0;
   }}
-  /* Remove Streamlit's default gap after the upload-card markdown block */
-  .element-container:has(.upload-card) {{
-    margin-bottom: 0 !important;
+
+  /* ── Your Prospects radio list ── */
+  [data-testid="stRadio"] > div > label {{
+    background: {WHITE};
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.55rem 0.9rem !important;
+    margin-bottom: 0.4rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: border-color 0.15s;
   }}
-  /* Style the file uploader as the bottom half of the card */
+  [data-testid="stRadio"] > div > label:hover {{
+    border-color: {NAVY};
+  }}
+
+  /* ── File uploader ── */
   [data-testid="stFileUploader"] {{
     background: {WHITE};
-    border-left: 2px dashed {NAVY};
-    border-right: 2px dashed {NAVY};
-    border-bottom: 2px dashed {NAVY};
-    border-radius: 0 0 14px 14px;
-    padding: 1rem 2rem 1.5rem;
-    margin-bottom: 1.5rem;
+    border: 2px dashed {NAVY};
+    border-radius: 10px;
+    padding: 0.5rem 1rem 1rem;
+    margin-bottom: 0.75rem;
   }}
-  /* Soften the inner dropzone so it reads as nested, not doubled-up */
   [data-testid="stFileUploaderDropzone"] {{
     background: {NAVY_LIGHT} !important;
     border-color: #c7d4e8 !important;
     border-radius: 8px !important;
+  }}
+
+  /* ── Analyse transcript button ── */
+  [data-testid="baseButton-primary"] {{
+    background: {NAVY} !important;
+    color: {WHITE} !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    width: 100% !important;
+    padding: 0.55rem 1.5rem !important;
+  }}
+  [data-testid="baseButton-primary"]:hover:not(:disabled) {{
+    background: {NAVY_MID} !important;
+  }}
+  [data-testid="baseButton-primary"]:disabled {{
+    opacity: 0.45 !important;
   }}
 
   /* ── Badges ── */
@@ -209,24 +264,22 @@ st.markdown(f"""
     font-weight: 700;
     font-size: 1rem;
     margin-bottom: 1.25rem;
+    margin-top: 2rem;
   }}
 
-  /* ── Discovery field card ── */
-  .field-card {{
-    background: {WHITE};
-    border-left: 4px solid {NAVY};
-    border-radius: 0 8px 8px 0;
-    padding: 1rem 1.2rem;
-    margin-bottom: 0.75rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  }}
-  .field-label {{
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: {NAVY};
-    margin-bottom: 0.35rem;
+  /* ── MEDDPICC letter badge inside expander ── */
+  .medd-letter {{
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: {NAVY};
+    color: {WHITE};
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-align: center;
+    line-height: 22px;
+    margin-right: 0.4rem;
+    flex-shrink: 0;
   }}
 
   /* ── Case study card ── */
@@ -281,7 +334,7 @@ st.markdown(f"""
     border-bottom-color: {NAVY} !important;
   }}
 
-  /* ── Streamlit button ── */
+  /* ── Download buttons ── */
   .stDownloadButton > button {{
     background: {NAVY} !important;
     color: {WHITE} !important;
@@ -332,13 +385,10 @@ st.markdown(f"""
 
   <!-- Decorative blob + icon -->
   <svg class="hero-deco" viewBox="0 0 360 360" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- Blob fill -->
     <path d="M185 28 C255 14 338 68 346 152 C354 236 298 318 214 330 C130 342 52 286 34 202 C16 118 58 38 122 24 C143 18 164 32 185 28 Z"
           fill="rgba(255,255,255,0.07)"/>
-    <!-- Offset outline (slightly larger, rotated feel) -->
     <path d="M200 18 C272 4 355 58 361 144 C367 228 310 312 226 326 C142 340 62 282 44 196 C26 110 70 30 136 16 C158 10 178 22 200 18 Z"
           fill="none" stroke="rgba(147,197,253,0.28)" stroke-width="1.5"/>
-    <!-- Large magnifying glass icon, centred in blob -->
     <circle cx="168" cy="162" r="58" stroke="rgba(255,255,255,0.16)" stroke-width="14" fill="none"/>
     <line x1="213" y1="207" x2="250" y2="244" stroke="rgba(255,255,255,0.16)" stroke-width="14" stroke-linecap="round"/>
   </svg>
@@ -400,27 +450,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# File upload
-# ---------------------------------------------------------------------------
-
-st.markdown(f"""
-<div class="upload-card">
-  <h3>Upload a transcript</h3>
-  <p>Accepts .md, .txt, .pdf, or .docx. Paste or export your discovery call notes directly.</p>
-</div>
-""", unsafe_allow_html=True)
-
-uploaded = st.file_uploader(
-    "Choose file",
-    type=["md", "txt", "pdf", "docx"],
-    label_visibility="collapsed",
-)
-
-if not uploaded:
-    st.stop()
-
-# ---------------------------------------------------------------------------
-# Parse file by type
+# Helper functions
 # ---------------------------------------------------------------------------
 
 def extract_text(file) -> str:
@@ -441,9 +471,21 @@ def extract_text(file) -> str:
     return raw.decode("utf-8")
 
 
-# ---------------------------------------------------------------------------
-# MEDDPICC write-up formatter
-# ---------------------------------------------------------------------------
+def exec_summary(content, max_len: int = 88) -> str:
+    """Return a short one-liner from a field value for use as an expander label."""
+    if not content:
+        return ""
+    if isinstance(content, list):
+        text = str(content[0]) if content else ""
+    else:
+        text = str(content)
+    # First sentence (stop at . ! ? or newline)
+    m = re.match(r"([^.!?\n]+[.!?]?)", text.strip())
+    first = m.group(1).strip() if m else text.strip()
+    if len(first) > max_len:
+        return first[:max_len].rstrip() + "..."
+    return first
+
 
 def format_meddpicc_writeup(d, fit_label: str) -> str:
     champ = d.champion
@@ -483,14 +525,10 @@ def format_meddpicc_writeup(d, fit_label: str) -> str:
     return "\n".join(s for s in sections if s is not None)
 
 
-# ---------------------------------------------------------------------------
-# PDF builders
-# ---------------------------------------------------------------------------
-
 def _sanitize(text: str) -> str:
     """Replace common unicode chars that fpdf2 core fonts cannot render."""
     return (text
-        .replace("’", "'").replace("‘", "'")
+        .replace("‘", "'").replace("’", "'")
         .replace("“", '"').replace("”", '"')
         .replace("–", "-").replace("—", "-")
         .replace("…", "...").replace(" ", " ")
@@ -523,7 +561,6 @@ def build_discovery_pdf(output, transcript_name: str, fit_label: str) -> bytes:
     pdf.add_page()
     ew = pdf.epw
 
-    # Title block
     pdf.set_font("Helvetica", "B", 20)
     pdf.set_text_color(15, 34, 68)
     pdf.cell(0, 12, "Discovery Report", new_x="LMARGIN", new_y="NEXT")
@@ -536,7 +573,6 @@ def build_discovery_pdf(output, transcript_name: str, fit_label: str) -> bytes:
     pdf.line(22, pdf.get_y(), pdf.w - 22, pdf.get_y())
     pdf.ln(5)
 
-    # Metadata row
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Helvetica", "B", 10)
     pdf.cell(35, 6, "Product Fit:", new_x="RIGHT", new_y="TOP")
@@ -587,7 +623,6 @@ def build_case_studies_pdf(output, transcript_name: str) -> bytes:
     pdf.add_page()
     ew = pdf.epw
 
-    # Title block
     pdf.set_font("Helvetica", "B", 20)
     pdf.set_text_color(15, 34, 68)
     pdf.cell(0, 12, "Case Studies", new_x="LMARGIN", new_y="NEXT")
@@ -601,7 +636,6 @@ def build_case_studies_pdf(output, transcript_name: str) -> bytes:
     pdf.ln(6)
 
     for i, cs in enumerate(output.case_studies, 1):
-        # Case study header bar
         pdf.set_fill_color(15, 34, 68)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 11)
@@ -609,7 +643,6 @@ def build_case_studies_pdf(output, transcript_name: str) -> bytes:
                  new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
 
-        # Match reasons
         pdf.set_text_color(15, 34, 68)
         pdf.set_font("Helvetica", "B", 8)
         pdf.cell(0, 5, "WHY RETRIEVED", new_x="LMARGIN", new_y="NEXT")
@@ -620,7 +653,6 @@ def build_case_studies_pdf(output, transcript_name: str) -> bytes:
             pdf.multi_cell(ew - 5, 4, f"* {_sanitize(reason)}")
         pdf.ln(3)
 
-        # Full content (markdown stripped)
         pdf.set_text_color(15, 34, 68)
         pdf.set_font("Helvetica", "B", 8)
         pdf.cell(0, 5, "FULL CASE STUDY", new_x="LMARGIN", new_y="NEXT")
@@ -633,20 +665,8 @@ def build_case_studies_pdf(output, transcript_name: str) -> bytes:
     return bytes(pdf.output())
 
 
-transcript = extract_text(uploaded)
-
-if not transcript.strip():
-    st.error("Could not extract text from the uploaded file. Please try a different format.")
-    st.stop()
-
-st.markdown(
-    f'<p style="color:#6b7280; font-size:0.85rem; margin-bottom:1rem;">'
-    f'<strong style="color:{NAVY};">{uploaded.name}</strong> &nbsp;·&nbsp; {len(transcript):,} characters extracted</p>',
-    unsafe_allow_html=True,
-)
-
 # ---------------------------------------------------------------------------
-# Run agent with live progress
+# Agent dispatch (monkey-patched for progress indicators)
 # ---------------------------------------------------------------------------
 
 import sea.agent as _agent_mod
@@ -664,49 +684,148 @@ TOOL_DONE = {
     "draft_followup_email":         "Email drafted",
 }
 
-_status_container = st.empty()
-
-def _make_verbose_dispatch(transcript_inner, state, client, model):
-    inner = _original_make_dispatch(transcript_inner, state, client, model)
-    def verbose_dispatch(tool_name, tool_input):
-        with _status_container.status(TOOL_LABELS.get(tool_name, tool_name), expanded=False) as s:
-            result = inner(tool_name, tool_input)
-            s.update(label=TOOL_DONE.get(tool_name, tool_name), state="complete")
-        return result
-    return verbose_dispatch
-
-_agent_mod._make_dispatch = _make_verbose_dispatch
-
-with st.spinner("Running agent..."):
-    try:
-        output = run_agent(transcript)
-    except Exception as e:
-        st.error(f"Agent failed: {type(e).__name__}: {e}")
-        st.stop()
-    finally:
-        _agent_mod._make_dispatch = _original_make_dispatch
-
-_status_container.empty()
-
-st.markdown(
-    f'<div style="background:#dcfce7; border:1px solid #86efac; border-radius:8px; '
-    f'padding:0.65rem 1rem; color:#166534; font-weight:600; margin-bottom:1.5rem;">'
-    f'Agent complete. All three artefacts generated.</div>',
-    unsafe_allow_html=True,
-)
-
 # ---------------------------------------------------------------------------
-# Results — three tabs
+# Two-column layout: "Your Prospects" | "New Prospect"
 # ---------------------------------------------------------------------------
 
-tab_discovery, tab_cases, tab_email = st.tabs(["Discovery", "Case Studies", "Follow-up Email"])
+has_prospects = bool(st.session_state.prospects)
 
-# -- Tab 1: Discovery --------------------------------------------------------
+if has_prospects:
+    col_your, col_new = st.columns([1, 2], gap="large")
+else:
+    col_your = None
+    col_new = st.container()
 
-with tab_discovery:
+# ── Your Prospects ──────────────────────────────────────────────────────────
+
+if col_your is not None:
+    with col_your:
+        st.markdown(f"""
+        <div class="section-label">Your Prospects</div>
+        <div class="section-bar"></div>
+        """, unsafe_allow_html=True)
+
+        names = [p["name"] for p in st.session_state.prospects]
+        default_idx = (
+            st.session_state.active_idx
+            if st.session_state.active_idx is not None
+            else len(names) - 1
+        )
+
+        selected_idx = st.radio(
+            "Select prospect",
+            options=list(range(len(names))),
+            format_func=lambda i: names[i],
+            index=default_idx,
+            label_visibility="collapsed",
+        )
+        st.session_state.active_idx = selected_idx
+
+# ── New Prospect ─────────────────────────────────────────────────────────────
+
+form_key = st.session_state.form_key
+
+with col_new:
+    st.markdown(f"""
+    <div class="section-label">New Prospect</div>
+    <div class="section-bar"></div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="new-prospect-card">
+      <h3>Upload a transcript</h3>
+      <p>Enter the prospect or customer name, then upload the discovery call transcript.
+         Accepts .md, .txt, .pdf, or .docx.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    prospect_name = st.text_input(
+        "Prospect / Customer name",
+        placeholder="e.g. Bellwether Coffee",
+        key=f"pname_{form_key}",
+    )
+
+    uploaded = st.file_uploader(
+        "Choose file",
+        type=["md", "txt", "pdf", "docx"],
+        label_visibility="collapsed",
+        key=f"fup_{form_key}",
+    )
+
+    if uploaded:
+        st.markdown(
+            f'<p style="color:#6b7280; font-size:0.85rem; margin:0.25rem 0 0.75rem;">'
+            f'<strong style="color:{NAVY};">{uploaded.name}</strong> &nbsp;·&nbsp; ready to analyse</p>',
+            unsafe_allow_html=True,
+        )
+
+    can_run = bool(uploaded and prospect_name.strip())
+
+    run_clicked = st.button(
+        "Analyse transcript",
+        disabled=not can_run,
+        type="primary",
+        key=f"run_{form_key}",
+    )
+
+    if run_clicked:
+        transcript = extract_text(uploaded)
+
+        if not transcript.strip():
+            st.error("Could not extract text from the uploaded file. Please try a different format.")
+            st.stop()
+
+        _status_container = st.empty()
+
+        def _make_verbose_dispatch(transcript_inner, state, client, model):
+            inner = _original_make_dispatch(transcript_inner, state, client, model)
+            def verbose_dispatch(tool_name, tool_input):
+                with _status_container.status(
+                    TOOL_LABELS.get(tool_name, tool_name), expanded=False
+                ) as s:
+                    result = inner(tool_name, tool_input)
+                    s.update(label=TOOL_DONE.get(tool_name, tool_name), state="complete")
+                return result
+            return verbose_dispatch
+
+        _agent_mod._make_dispatch = _make_verbose_dispatch
+
+        with st.spinner("Running agent..."):
+            try:
+                output = run_agent(transcript)
+            except Exception as e:
+                st.error(f"Agent failed: {type(e).__name__}: {e}")
+                st.stop()
+            finally:
+                _agent_mod._make_dispatch = _original_make_dispatch
+
+        _status_container.empty()
+
+        st.session_state.prospects.append({
+            "name": prospect_name.strip(),
+            "transcript_name": uploaded.name,
+            "output": output,
+        })
+        st.session_state.active_idx = len(st.session_state.prospects) - 1
+        st.session_state.form_key += 1  # reset name input + uploader on next render
+        st.rerun()
+
+# ---------------------------------------------------------------------------
+# Results — shown for the selected prospect
+# ---------------------------------------------------------------------------
+
+if st.session_state.active_idx is not None and st.session_state.prospects:
+    active          = st.session_state.prospects[st.session_state.active_idx]
+    output          = active["output"]
+    transcript_name = active["transcript_name"]
+
+    st.markdown(
+        f'<div class="results-header">Results &nbsp;·&nbsp; {active["name"]}</div>',
+        unsafe_allow_html=True,
+    )
+
     d = output.discovery
 
-    # Product fit + champion badges
     fit_badge = {
         "core-only":        ("badge-blue",   "Core only"),
         "measurement-only": ("badge-orange",  "Measurement only"),
@@ -715,123 +834,138 @@ with tab_discovery:
     }
     fit_cls, fit_label = fit_badge.get(d.product_fit, ("badge-gray", d.product_fit))
 
-    champ = d.champion
-    if champ.status == "confirmed":
-        champ_html = f'<span class="badge badge-green">Champion confirmed</span> &nbsp; {champ.name}'
-    elif champ.status == "forming":
-        champ_html = f'<span class="badge badge-orange">Champion forming</span> &nbsp; {champ.name}'
-    else:
-        champ_html = '<span class="badge badge-gray">No champion identified</span>'
+    tab_discovery, tab_cases, tab_email = st.tabs(
+        ["Discovery", "Case Studies", "Follow-up Email"]
+    )
 
-    st.markdown(f"""
-    <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:1.25rem;">
-      <span class="badge {fit_cls}">{fit_label}</span>
-      {champ_html}
-    </div>
-    """, unsafe_allow_html=True)
+    # ── Tab 1: Discovery ─────────────────────────────────────────────────────
 
-    # Summary
-    st.markdown(f"""
-    <div class="field-card">
-      <div class="field-label">Summary</div>
-      <div style="font-size:0.95rem; color:#1f2937; line-height:1.6;">{d.summary}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col_left, col_right = st.columns(2)
-
-    def field_card(label, items):
-        if not items:
-            return ""
-        if isinstance(items, str):
-            body = f'<div style="font-size:0.9rem; color:#1f2937;">{items}</div>'
+    with tab_discovery:
+        champ = d.champion
+        if champ.status == "confirmed":
+            champ_html = (
+                f'<span class="badge badge-green">Champion confirmed</span>'
+                f' &nbsp; {champ.name}'
+            )
+        elif champ.status == "forming":
+            champ_html = (
+                f'<span class="badge badge-orange">Champion forming</span>'
+                f' &nbsp; {champ.name}'
+            )
         else:
-            rows = "".join(f'<li style="margin-bottom:0.3rem;">{i}</li>' for i in items)
-            body = f'<ul style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#374151;">{rows}</ul>'
-        return f'<div class="field-card"><div class="field-label">{label}</div>{body}</div>'
+            champ_html = '<span class="badge badge-gray">No champion identified</span>'
 
-    with col_left:
-        if d.economic_buyer:
-            st.markdown(field_card("Economic buyer", d.economic_buyer), unsafe_allow_html=True)
-        if d.timeline:
-            st.markdown(field_card("Timeline", d.timeline), unsafe_allow_html=True)
-        if d.metrics:
-            st.markdown(field_card("Metrics", d.metrics), unsafe_allow_html=True)
-
-    with col_right:
-        if d.identify_pain:
-            st.markdown(field_card("Pain", d.identify_pain), unsafe_allow_html=True)
-
-    col3, col4 = st.columns(2)
-    with col3:
-        if d.decision_criteria:
-            st.markdown(field_card("Decision criteria", d.decision_criteria), unsafe_allow_html=True)
-        if d.competition:
-            st.markdown(field_card("Competition", d.competition), unsafe_allow_html=True)
-    with col4:
-        if d.decision_process:
-            st.markdown(field_card("Decision process", d.decision_process), unsafe_allow_html=True)
-        if d.paper_process:
-            st.markdown(field_card("Paper process", d.paper_process), unsafe_allow_html=True)
-
-    # Full write-up + downloads
-    st.markdown(
-        f"<div style='margin-top:1.75rem; margin-bottom:0.4rem;'>"
-        f"<span style='font-size:0.72rem; font-weight:700; letter-spacing:0.1em; "
-        f"text-transform:uppercase; color:{NAVY};'>Full write-up</span>"
-        f"<div style='height:2px; background:{NAVY}; border-radius:2px; margin-top:0.3rem; width:40px;'></div>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-    st.code(format_meddpicc_writeup(d, fit_label), language=None)
-
-    st.download_button(
-        label="Download Discovery PDF",
-        data=build_discovery_pdf(output, uploaded.name, fit_label),
-        file_name="discovery.pdf",
-        mime="application/pdf",
-    )
-
-# -- Tab 2: Case Studies -----------------------------------------------------
-
-with tab_cases:
-    if not output.case_studies:
-        st.info("No case studies matched.")
-    else:
-        st.download_button(
-            label="Download Case Studies PDF",
-            data=build_case_studies_pdf(output, uploaded.name),
-            file_name="case-studies.pdf",
-            mime="application/pdf",
-        )
-    for i, cs in enumerate(output.case_studies, 1):
-        reasons_html = "".join(
-            f'<li style="margin-bottom:0.25rem; font-size:0.88rem; color:#374151;">{r}</li>'
-            for r in cs.match_reasons
-        )
         st.markdown(f"""
-        <div class="cs-card">
-          <div class="cs-score">Score: {cs.score:.0f}</div>
-          <div style="font-size:1rem; font-weight:700; color:{NAVY}; margin-bottom:0.5rem;">{i}. {cs.title}</div>
-          <div style="font-size:0.75rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
-                      color:{NAVY}; margin-bottom:0.35rem;">Why retrieved</div>
-          <ul style="margin:0 0 0.5rem; padding-left:1.2rem;">{reasons_html}</ul>
+        <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:1.5rem;">
+          <span class="badge {fit_cls}">{fit_label}</span>
+          {champ_html}
         </div>
         """, unsafe_allow_html=True)
-        with st.expander("View full case study"):
-            st.markdown(cs.content)
 
-# -- Tab 3: Follow-up Email --------------------------------------------------
+        # ── MEDDPICC accordion in sequence ──────────────────────────────────
 
-with tab_email:
-    st.markdown(f'<div class="email-subject">Subject: {output.email.subject}</div>', unsafe_allow_html=True)
-    # Render body preserving line breaks
-    body_html = output.email.body.replace("\n", "<br>")
-    st.markdown(f'<div class="email-card">{body_html}</div>', unsafe_allow_html=True)
-    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
-    st.download_button(
-        label="Download email",
-        data=f"Subject: {output.email.subject}\n\n{output.email.body}",
-        file_name="followup-email.txt",
-        mime="text/plain",
-    )
+        # Champion content for the accordion
+        if champ.status == "confirmed":
+            champ_content: str | None = f"{champ.name} (confirmed)"
+        elif champ.status == "forming":
+            champ_content = f"{champ.name} (forming)"
+        else:
+            champ_content = None
+
+        MEDDPICC_FIELDS = [
+            ("M", "Metrics",           d.metrics),
+            ("E", "Economic Buyer",    d.economic_buyer),
+            ("D", "Decision Criteria", d.decision_criteria),
+            ("D", "Decision Process",  d.decision_process),
+            ("P", "Paper Process",     d.paper_process),
+            ("I", "Identify Pain",     d.identify_pain),
+            ("C", "Champion",          champ_content),
+            ("C", "Competition",       d.competition),
+        ]
+
+        for letter, field_name, content in MEDDPICC_FIELDS:
+            summary = exec_summary(content)
+            if summary:
+                label = f"**[{letter}]  {field_name}** &nbsp; {summary}"
+            else:
+                label = f"**[{letter}]  {field_name}**"
+
+            with st.expander(label):
+                if not content:
+                    st.markdown(
+                        "_Not identified in this transcript._",
+                        unsafe_allow_html=False,
+                    )
+                elif isinstance(content, list):
+                    for item in content:
+                        st.markdown(f"- {item}")
+                else:
+                    st.markdown(str(content))
+
+        # ── Full write-up ────────────────────────────────────────────────────
+        st.markdown(
+            f"<div style='margin-top:1.75rem; margin-bottom:0.4rem;'>"
+            f"<span style='font-size:0.72rem; font-weight:700; letter-spacing:0.1em; "
+            f"text-transform:uppercase; color:{NAVY};'>Full write-up</span>"
+            f"<div style='height:2px; background:{NAVY}; border-radius:2px; "
+            f"margin-top:0.3rem; width:40px;'></div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.code(format_meddpicc_writeup(d, fit_label), language=None)
+
+        st.download_button(
+            label="Download Discovery PDF",
+            data=build_discovery_pdf(output, transcript_name, fit_label),
+            file_name="discovery.pdf",
+            mime="application/pdf",
+        )
+
+    # ── Tab 2: Case Studies ───────────────────────────────────────────────────
+
+    with tab_cases:
+        if not output.case_studies:
+            st.info("No case studies matched.")
+        else:
+            st.download_button(
+                label="Download Case Studies PDF",
+                data=build_case_studies_pdf(output, transcript_name),
+                file_name="case-studies.pdf",
+                mime="application/pdf",
+            )
+        for i, cs in enumerate(output.case_studies, 1):
+            reasons_html = "".join(
+                f'<li style="margin-bottom:0.25rem; font-size:0.88rem; color:#374151;">{r}</li>'
+                for r in cs.match_reasons
+            )
+            st.markdown(f"""
+            <div class="cs-card">
+              <div class="cs-score">Score: {cs.score:.0f}</div>
+              <div style="font-size:1rem; font-weight:700; color:{NAVY}; margin-bottom:0.5rem;">{i}. {cs.title}</div>
+              <div style="font-size:0.75rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+                          color:{NAVY}; margin-bottom:0.35rem;">Why retrieved</div>
+              <ul style="margin:0 0 0.5rem; padding-left:1.2rem;">{reasons_html}</ul>
+            </div>
+            """, unsafe_allow_html=True)
+            with st.expander("View full case study"):
+                st.markdown(cs.content)
+
+    # ── Tab 3: Follow-up Email ────────────────────────────────────────────────
+
+    with tab_email:
+        st.markdown(
+            f'<div class="email-subject">Subject: {output.email.subject}</div>',
+            unsafe_allow_html=True,
+        )
+        body_html = output.email.body.replace("\n", "<br>")
+        st.markdown(
+            f'<div class="email-card">{body_html}</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+        st.download_button(
+            label="Download email",
+            data=f"Subject: {output.email.subject}\n\n{output.email.body}",
+            file_name="followup-email.txt",
+            mime="text/plain",
+        )
