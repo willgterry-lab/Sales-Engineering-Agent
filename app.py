@@ -8,6 +8,7 @@ Run with:
 """
 
 import io
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -440,6 +441,198 @@ def extract_text(file) -> str:
     return raw.decode("utf-8")
 
 
+# ---------------------------------------------------------------------------
+# MEDDPICC write-up formatter
+# ---------------------------------------------------------------------------
+
+def format_meddpicc_writeup(d, fit_label: str) -> str:
+    champ = d.champion
+    if champ.status == "confirmed":
+        champ_str = f"{champ.name} (confirmed)"
+    elif champ.status == "forming":
+        champ_str = f"{champ.name} (forming)"
+    else:
+        champ_str = "None identified"
+
+    def block(title: str, content) -> str:
+        if not content:
+            return ""
+        header = title.upper()
+        sep = "-" * len(header)
+        if isinstance(content, list):
+            body = "\n".join(f"  * {item}" for item in content)
+        else:
+            body = f"  {content}"
+        return f"{header}\n{sep}\n{body}\n"
+
+    sections = [
+        f"MEDDPICC DISCOVERY REPORT\n{'=' * 40}",
+        f"Product Fit:  {fit_label}",
+        f"Champion:     {champ_str}",
+        "",
+        block("Summary",          d.summary),
+        block("Metrics",          d.metrics),
+        block("Economic Buyer",   d.economic_buyer),
+        block("Decision Criteria",d.decision_criteria),
+        block("Decision Process", d.decision_process),
+        block("Identify Pain",    d.identify_pain),
+        block("Competition",      d.competition),
+        block("Paper Process",    d.paper_process),
+        block("Timeline",         d.timeline),
+    ]
+    return "\n".join(s for s in sections if s is not None)
+
+
+# ---------------------------------------------------------------------------
+# PDF builders
+# ---------------------------------------------------------------------------
+
+def _sanitize(text: str) -> str:
+    """Replace common unicode chars that fpdf2 core fonts cannot render."""
+    return (text
+        .replace("’", "'").replace("‘", "'")
+        .replace("“", '"').replace("”", '"')
+        .replace("–", "-").replace("—", "-")
+        .replace("…", "...").replace(" ", " ")
+        .replace("•", "*").replace("‐", "-"))
+
+
+def _strip_md(text: str) -> str:
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    text = re.sub(r"`(.+?)`", r"\1", text)
+    text = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", text)
+    return text
+
+
+def build_discovery_pdf(output, transcript_name: str, fit_label: str) -> bytes:
+    from fpdf import FPDF
+
+    d = output.discovery
+    champ = d.champion
+    if champ.status == "confirmed":
+        champ_str = f"{champ.name} (confirmed)"
+    elif champ.status == "forming":
+        champ_str = f"{champ.name} (forming)"
+    else:
+        champ_str = "None identified"
+
+    pdf = FPDF()
+    pdf.set_margins(22, 22, 22)
+    pdf.add_page()
+    ew = pdf.epw
+
+    # Title block
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(15, 34, 68)
+    pdf.cell(0, 12, "Discovery Report", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(107, 114, 128)
+    pdf.cell(0, 5, _sanitize(transcript_name), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    pdf.set_draw_color(15, 34, 68)
+    pdf.set_line_width(0.6)
+    pdf.line(22, pdf.get_y(), pdf.w - 22, pdf.get_y())
+    pdf.ln(5)
+
+    # Metadata row
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(35, 6, "Product Fit:", new_x="RIGHT", new_y="TOP")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, fit_label, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(35, 6, "Champion:", new_x="RIGHT", new_y="TOP")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, _sanitize(champ_str), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    def add_section(title: str, content):
+        if not content:
+            return
+        pdf.set_fill_color(238, 242, 248)
+        pdf.set_text_color(15, 34, 68)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(0, 7, title.upper(), fill=True, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+        pdf.set_text_color(31, 41, 55)
+        pdf.set_font("Helvetica", "", 9)
+        items = content if isinstance(content, list) else [content]
+        for item in items:
+            txt = _sanitize(str(item))
+            prefix = "* " if isinstance(content, list) else ""
+            pdf.set_x(27)
+            pdf.multi_cell(ew - 5, 5, f"{prefix}{txt}")
+        pdf.ln(3)
+
+    add_section("Summary",           d.summary)
+    add_section("Metrics",           d.metrics)
+    add_section("Economic Buyer",    d.economic_buyer)
+    add_section("Decision Criteria", d.decision_criteria)
+    add_section("Decision Process",  d.decision_process)
+    add_section("Identify Pain",     d.identify_pain)
+    add_section("Competition",       d.competition)
+    add_section("Paper Process",     d.paper_process)
+    add_section("Timeline",          d.timeline)
+
+    return bytes(pdf.output())
+
+
+def build_case_studies_pdf(output, transcript_name: str) -> bytes:
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.set_margins(22, 22, 22)
+    pdf.add_page()
+    ew = pdf.epw
+
+    # Title block
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(15, 34, 68)
+    pdf.cell(0, 12, "Case Studies", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(107, 114, 128)
+    pdf.cell(0, 5, _sanitize(transcript_name), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    pdf.set_draw_color(15, 34, 68)
+    pdf.set_line_width(0.6)
+    pdf.line(22, pdf.get_y(), pdf.w - 22, pdf.get_y())
+    pdf.ln(6)
+
+    for i, cs in enumerate(output.case_studies, 1):
+        # Case study header bar
+        pdf.set_fill_color(15, 34, 68)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 9, f"{i}.  {_sanitize(cs.title)}", fill=True,
+                 new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # Match reasons
+        pdf.set_text_color(15, 34, 68)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.cell(0, 5, "WHY RETRIEVED", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(55, 65, 81)
+        pdf.set_font("Helvetica", "", 8)
+        for reason in cs.match_reasons:
+            pdf.set_x(27)
+            pdf.multi_cell(ew - 5, 4, f"* {_sanitize(reason)}")
+        pdf.ln(3)
+
+        # Full content (markdown stripped)
+        pdf.set_text_color(15, 34, 68)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.cell(0, 5, "FULL CASE STUDY", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(31, 41, 55)
+        pdf.set_font("Helvetica", "", 8)
+        clean = _sanitize(_strip_md(cs.content))
+        pdf.multi_cell(ew, 4, clean)
+        pdf.ln(6)
+
+    return bytes(pdf.output())
+
+
 transcript = extract_text(uploaded)
 
 if not transcript.strip():
@@ -581,11 +774,36 @@ with tab_discovery:
         if d.paper_process:
             st.markdown(field_card("Paper process", d.paper_process), unsafe_allow_html=True)
 
+    # Full write-up + downloads
+    st.markdown(
+        f"<div style='margin-top:1.75rem; margin-bottom:0.4rem;'>"
+        f"<span style='font-size:0.72rem; font-weight:700; letter-spacing:0.1em; "
+        f"text-transform:uppercase; color:{NAVY};'>Full write-up</span>"
+        f"<div style='height:2px; background:{NAVY}; border-radius:2px; margin-top:0.3rem; width:40px;'></div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    st.code(format_meddpicc_writeup(d, fit_label), language=None)
+
+    st.download_button(
+        label="Download Discovery PDF",
+        data=build_discovery_pdf(output, uploaded.name, fit_label),
+        file_name="discovery.pdf",
+        mime="application/pdf",
+    )
+
 # -- Tab 2: Case Studies -----------------------------------------------------
 
 with tab_cases:
     if not output.case_studies:
         st.info("No case studies matched.")
+    else:
+        st.download_button(
+            label="Download Case Studies PDF",
+            data=build_case_studies_pdf(output, uploaded.name),
+            file_name="case-studies.pdf",
+            mime="application/pdf",
+        )
     for i, cs in enumerate(output.case_studies, 1):
         reasons_html = "".join(
             f'<li style="margin-bottom:0.25rem; font-size:0.88rem; color:#374151;">{r}</li>'
